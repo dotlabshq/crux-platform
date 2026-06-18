@@ -35,7 +35,7 @@ You implement backend features: APIs, database schemas, business logic, service 
 ## II. Before Starting Any Task
 
 1. Read `.crux/workspace/backend-developer/TODO.md` — resume open tasks before starting new ones
-2. For any new capability: wait for capability-check result from coordinator
+2. For any new capability: wait for capability-check result from arc
 3. Read `.crux/docs/deployment-model.md` — tenant isolation enforcement depends on this
 
 ---

@@ -1,0 +1,611 @@
+#!/usr/bin/env bash
+# =============================================================================
+# crux — CLI for the Crux Platform framework
+# https://github.com/basecrux/crux
+#
+# Commands:
+#   crux init [--tool <tool>] [--agents <list>]
+#   crux update [--agents <list>]
+#   crux convert [--tool <tool>]
+#   crux status
+#   crux registry
+#   crux agent <list|add|info> [name]
+#   crux help
+# =============================================================================
+set -euo pipefail
+
+# ── Colours ──────────────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+GRAY='\033[0;90m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+ok()    { echo -e "  ${GREEN}✓${RESET}  $*"; }
+info()  { echo -e "  ${CYAN}→${RESET}  $*"; }
+warn()  { echo -e "  ${YELLOW}⚠${RESET}  $*"; }
+err()   { echo -e "  ${RED}✗${RESET}  $*" >&2; }
+hdr()   { echo -e "\n${BOLD}${BLUE}$*${RESET}"; }
+dim()   { echo -e "  ${GRAY}$*${RESET}"; }
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+CRUX_HOME="${CRUX_HOME:-$HOME/.crux}"
+CRUX_REGISTRY="${CRUX_REGISTRY:-$CRUX_HOME/registry}"
+CRUX_REPO="${CRUX_REPO:-basecrux/crux}"
+CRUX_BRANCH="${CRUX_BRANCH:-main}"
+PROJECT_DIR="$(pwd)"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+require_framework() {
+  if [[ ! -d "$CRUX_HOME/agents" ]]; then
+    err "Crux framework not installed. Run:"
+    echo ""
+    echo -e "  ${CYAN}curl -fsSL https://raw.githubusercontent.com/${CRUX_REPO}/${CRUX_BRANCH}/scripts/install.sh | bash${RESET}"
+    echo ""
+    exit 1
+  fi
+}
+
+detect_tool() {
+  if   [[ -d ".claude" ]];    then echo "claude-code"
+  elif [[ -d ".opencode" ]];  then echo "opencode"
+  elif [[ -d ".cursor" ]];    then echo "cursor"
+  elif [[ -d ".windsurf" ]];  then echo "windsurf"
+  elif [[ -d ".github" && -f ".github/copilot-instructions.md" ]]; then echo "copilot"
+  else echo "claude-code"   # sensible default
+  fi
+}
+
+project_slug() {
+  # derive from directory name, lowercase hyphenated
+  basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//'
+}
+
+manifest_status() {
+  local manifest="$PROJECT_DIR/.crux/workspace/MANIFEST.md"
+  [[ ! -f "$manifest" ]] && echo "not-initialized" && return
+  grep -m1 'Status:' "$manifest" 2>/dev/null | awk '{print $2}' || echo "unknown"
+}
+
+# ── Command: init ─────────────────────────────────────────────────────────────
+cmd_init() {
+  require_framework
+
+  local tool="auto"
+  local agents_arg=""
+  local force=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --tool|-t)    tool="$2";       shift 2 ;;
+      --agents|-a)  agents_arg="$2"; shift 2 ;;
+      --force|-f)   force=true;      shift ;;
+      *) err "Unknown option: $1"; exit 1 ;;
+    esac
+  done
+
+  [[ "$tool" == "auto" ]] && tool=$(detect_tool)
+
+  # Already initialized?
+  local status
+  status=$(manifest_status)
+  if [[ "$status" == "onboarded" ]] && ! $force; then
+    warn "Project already initialized (status: onboarded)"
+    info "Use --force to re-initialize"
+    echo ""
+    cmd_status
+    return
+  fi
+
+  hdr "Initializing Crux workspace"
+  echo -e "  Project:    ${CYAN}$(project_slug)${RESET}"
+  echo -e "  Directory:  ${CYAN}$PROJECT_DIR${RESET}"
+  echo -e "  Tool:       ${CYAN}$tool${RESET}"
+  echo -e "  Framework:  ${CYAN}$CRUX_HOME${RESET}"
+
+  # ── Step 1: Create .crux directory structure ─────────────────────────────
+  hdr "Creating workspace structure..."
+  local dirs=(
+    ".crux"
+    ".crux/docs"
+    ".crux/summaries"
+    ".crux/decisions"
+    ".crux/workspace"
+    ".crux/workspace/sessions"
+  )
+  for d in "${dirs[@]}"; do
+    mkdir -p "$d"
+    ok "$d"
+  done
+
+  # ── Step 2: Write AGENTS.md bootstrap ────────────────────────────────────
+  hdr "Writing project bootstrap..."
+  local agents_file="$PROJECT_DIR/AGENTS.md"
+  local marker="Crux Project Bootstrap"
+
+  if [[ ! -f "$agents_file" ]] || ! grep -q "$marker" "$agents_file" 2>/dev/null; then
+    cat > "$agents_file" << 'AGENTS_EOF'
+# Crux Project Bootstrap
+
+Before interpreting project state, routing work, or loading agents, read:
+
+  `{framework-home}/skills/crux-arc/SKILL.md`
+
+Default `{framework-home}` is `$HOME/.crux` unless `CRUX_HOME` is set.
+
+Treat `{framework-home}/` as reusable framework definitions and
+`{project}/.crux/` as project knowledge and live state.
+Do not write project knowledge into `{framework-home}/`.
+AGENTS_EOF
+    ok "AGENTS.md"
+  else
+    info "AGENTS.md already has bootstrap, skipping"
+  fi
+
+  # ── Step 3: Write MANIFEST.md ─────────────────────────────────────────────
+  local manifest="$PROJECT_DIR/.crux/workspace/MANIFEST.md"
+  if [[ ! -f "$manifest" ]] || $force; then
+    local slug
+    slug=$(project_slug)
+    cat > "$manifest" << MANIFEST_EOF
+# Workspace Manifest
+
+**Status:** pending-onboard
+**Project:** $slug
+**Created:** $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+**Framework:** $CRUX_HOME
+
+---
+
+## Agents
+
+| Agent | Status | Last Active |
+|---|---|---|
+| arc | pending-onboard | — |
+
+---
+
+## Pending Amendments
+
+_none_
+MANIFEST_EOF
+    ok ".crux/workspace/MANIFEST.md"
+  fi
+
+  # ── Step 4: Write empty workspace files ──────────────────────────────────
+  local workspace_files=(
+    ".crux/workspace/TODO.md"
+    ".crux/workspace/MEMORY.md"
+    ".crux/workspace/inbox.md"
+  )
+  for wf in "${workspace_files[@]}"; do
+    [[ ! -f "$wf" ]] && touch "$wf" && ok "$wf"
+  done
+
+  # ── Step 5: Per-agent workspace directories ───────────────────────────────
+  local default_agents=("arc" "solution-architect" "platform-steward" "backend-developer" "platform-engineer" "spectator")
+  if [[ -n "$agents_arg" ]]; then
+    IFS=',' read -ra default_agents <<< "$agents_arg"
+  fi
+  for agent in "${default_agents[@]}"; do
+    agent=$(echo "$agent" | xargs)
+    local adir=".crux/workspace/$agent"
+    mkdir -p "$adir/sessions"
+    [[ ! -f "$adir/TODO.md" ]]   && touch "$adir/TODO.md"
+    [[ ! -f "$adir/MEMORY.md" ]] && touch "$adir/MEMORY.md"
+    [[ ! -f "$adir/NOTES.md" ]]  && touch "$adir/NOTES.md"
+    ok ".crux/workspace/$agent/"
+  done
+
+  # ── Step 6: .gitignore ────────────────────────────────────────────────────
+  hdr "Updating .gitignore..."
+  local gitignore="$PROJECT_DIR/.gitignore"
+  local entry=".crux/workspace/"
+  if [[ -f "$gitignore" ]]; then
+    grep -qxF "$entry" "$gitignore" \
+      && info "Already in .gitignore: $entry" \
+      || { echo "$entry" >> "$gitignore"; ok "Added $entry to .gitignore"; }
+  else
+    echo "$entry" > "$gitignore"
+    ok "Created .gitignore with $entry"
+  fi
+
+  # ── Step 7: Convert to tool format ───────────────────────────────────────
+  hdr "Converting agents for $tool..."
+  local convert="$CRUX_HOME/scripts/convert.sh"
+  if [[ -f "$convert" ]]; then
+    bash "$convert" --tool "$tool" --source "$CRUX_HOME"
+  else
+    warn "convert.sh not found at $CRUX_HOME/scripts/convert.sh"
+  fi
+
+  # ── Step 8: Register in global registry ──────────────────────────────────
+  hdr "Registering in global registry..."
+  _registry_register
+
+  # ── Done ──────────────────────────────────────────────────────────────────
+  echo ""
+  echo -e "${BOLD}${GREEN}┌────────────────────────────────────────────────────┐${RESET}"
+  echo -e "${BOLD}${GREEN}│  Workspace initialized                             │${RESET}"
+  echo -e "${BOLD}${GREEN}└────────────────────────────────────────────────────┘${RESET}"
+  echo ""
+  echo -e "  ${BOLD}Next step:${RESET} Open your AI tool in this directory."
+  echo ""
+
+  case "$tool" in
+    claude-code)
+      echo -e "  ${BOLD}Claude Code:${RESET}"
+      echo -e "    ${CYAN}claude${RESET}  then type: ${CYAN}@arc${RESET}"
+      ;;
+    cursor)
+      echo -e "  ${BOLD}Cursor:${RESET}"
+      echo -e "    Open Cursor → Chat → ${CYAN}@arc hadi başlayalım${RESET}"
+      ;;
+    opencode)
+      echo -e "  ${BOLD}OpenCode:${RESET}"
+      echo -e "    ${CYAN}opencode${RESET} then: ${CYAN}@arc${RESET}"
+      ;;
+    *)
+      echo -e "  Start your AI tool and say: ${CYAN}@arc hadi başlayalım${RESET}"
+      ;;
+  esac
+  echo ""
+  echo -e "  Arc will run onboarding automatically on first boot."
+  echo ""
+}
+
+# ── Command: status ───────────────────────────────────────────────────────────
+cmd_status() {
+  local manifest="$PROJECT_DIR/.crux/workspace/MANIFEST.md"
+  local slug
+  slug=$(project_slug)
+
+  hdr "Crux workspace status"
+  echo -e "  Project:   ${CYAN}$slug${RESET}"
+  echo -e "  Directory: ${CYAN}$PROJECT_DIR${RESET}"
+  echo -e "  Framework: ${CYAN}$CRUX_HOME${RESET}"
+  echo ""
+
+  if [[ ! -d "$PROJECT_DIR/.crux" ]]; then
+    echo -e "  Status:    ${RED}not initialized${RESET}"
+    echo ""
+    info "Run: ${CYAN}crux init${RESET}"
+    return
+  fi
+
+  local status
+  status=$(manifest_status)
+  case "$status" in
+    onboarded)     echo -e "  Status:    ${GREEN}onboarded ✓${RESET}" ;;
+    pending-onboard) echo -e "  Status:    ${YELLOW}pending onboarding${RESET}" ;;
+    partial-onboard) echo -e "  Status:    ${YELLOW}partially onboarded${RESET}" ;;
+    *)             echo -e "  Status:    ${GRAY}$status${RESET}" ;;
+  esac
+
+  # Workspace files
+  echo ""
+  echo -e "  ${BOLD}Workspace:${RESET}"
+  for f in MANIFEST.md TODO.md MEMORY.md inbox.md; do
+    local fp="$PROJECT_DIR/.crux/workspace/$f"
+    if [[ -f "$fp" ]]; then
+      local lines
+      lines=$(wc -l < "$fp" 2>/dev/null || echo 0)
+      ok "$f ${GRAY}($lines lines)${RESET}"
+    else
+      warn "$f ${GRAY}(missing)${RESET}"
+    fi
+  done
+
+  # Agent workspaces
+  echo ""
+  echo -e "  ${BOLD}Agent workspaces:${RESET}"
+  if [[ -d "$PROJECT_DIR/.crux/workspace" ]]; then
+    for d in "$PROJECT_DIR/.crux/workspace"/*/; do
+      [[ -d "$d" ]] || continue
+      local name
+      name=$(basename "$d")
+      [[ "$name" == "sessions" ]] && continue
+      ok "$name"
+    done
+  fi
+
+  # Decisions
+  local ndecisions
+  ndecisions=$(find "$PROJECT_DIR/.crux/decisions" -name "*.md" 2>/dev/null | wc -l)
+  echo ""
+  echo -e "  ${BOLD}Decisions:${RESET} $ndecisions ADRs"
+
+  # Inbox
+  local ngates
+  ngates=$(grep -c '^## GATE-' "$PROJECT_DIR/.crux/workspace/inbox.md" 2>/dev/null || echo 0)
+  echo -e "  ${BOLD}Inbox:${RESET}     $ngates pending gates"
+
+  # Tool detection
+  echo ""
+  echo -e "  ${BOLD}Tool:${RESET}      $(detect_tool)"
+
+  # Registry
+  if grep -q "$(project_slug)" "$CRUX_REGISTRY/projects.md" 2>/dev/null; then
+    echo -e "  ${BOLD}Registry:${RESET}  ${GREEN}registered ✓${RESET}"
+  else
+    echo -e "  ${BOLD}Registry:${RESET}  ${YELLOW}not registered${RESET}"
+  fi
+  echo ""
+}
+
+# ── Command: convert ──────────────────────────────────────────────────────────
+cmd_convert() {
+  require_framework
+  local tool="auto"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --tool|-t) tool="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ "$tool" == "auto" ]] && tool=$(detect_tool)
+
+  hdr "Converting agents for $tool..."
+  local convert="$CRUX_HOME/scripts/convert.sh"
+  if [[ -f "$convert" ]]; then
+    bash "$convert" --tool "$tool" --source "$CRUX_HOME"
+    ok "Done — agents ready for $tool"
+  else
+    err "convert.sh not found"
+    exit 1
+  fi
+}
+
+# ── Command: update ───────────────────────────────────────────────────────────
+cmd_update() {
+  require_framework
+  hdr "Updating Crux framework..."
+  local update="$CRUX_HOME/scripts/update.sh"
+  if [[ -f "$update" ]]; then
+    bash "$update" "$@"
+  else
+    err "update.sh not found at $CRUX_HOME/scripts/update.sh"
+    exit 1
+  fi
+}
+
+# ── Command: registry ─────────────────────────────────────────────────────────
+cmd_registry() {
+  hdr "Crux global registry"
+  echo -e "  Path: ${CYAN}$CRUX_REGISTRY${RESET}"
+  echo ""
+
+  if [[ ! -f "$CRUX_REGISTRY/projects.md" ]]; then
+    warn "Registry not initialized. Run: ${CYAN}crux init${RESET} in a project."
+    return
+  fi
+
+  echo -e "  ${BOLD}Registered projects:${RESET}"
+  # Skip header rows, print project rows
+  grep '^\| ' "$CRUX_REGISTRY/projects.md" 2>/dev/null \
+    | grep -v '^\| Slug' | grep -v '^\|---' \
+    | while IFS='|' read -r _ slug name path type status registered _; do
+        slug=$(echo "$slug" | xargs)
+        name=$(echo "$name" | xargs)
+        status=$(echo "$status" | xargs)
+        [[ -z "$slug" || "$slug" == "Slug" ]] && continue
+        case "$status" in
+          active)   echo -e "    ${GREEN}●${RESET}  ${BOLD}$slug${RESET}  ${GRAY}$name${RESET}" ;;
+          archived) echo -e "    ${GRAY}●${RESET}  ${GRAY}$slug  $name (archived)${RESET}" ;;
+          *)        echo -e "    ${YELLOW}●${RESET}  $slug  $name" ;;
+        esac
+      done
+
+  echo ""
+  local ncaps
+  ncaps=$(grep -c '^|' "$CRUX_REGISTRY/capabilities.md" 2>/dev/null || echo 0)
+  echo -e "  ${BOLD}Capabilities registered:${RESET} $ncaps entries"
+  echo ""
+}
+
+# ── Command: agent ────────────────────────────────────────────────────────────
+cmd_agent() {
+  require_framework
+  local subcmd="${1:-list}"
+  shift || true
+
+  case "$subcmd" in
+    list|ls)
+      hdr "Available agents"
+      echo ""
+      local count=0
+      for dir in "$CRUX_HOME/agents"/*/; do
+        [[ -d "$dir" ]] || continue
+        local role
+        role=$(basename "$dir")
+        local agent_file="$dir/AGENT.md"
+        [[ ! -f "$agent_file" ]] && continue
+
+        # Extract frontmatter fields
+        local name emoji color desc
+        name=$(awk '/^name:/{print substr($0, index($0,$2))}' "$agent_file" | head -1)
+        emoji=$(awk '/^emoji:/{print $2}' "$agent_file" | head -1)
+        color=$(awk '/^color:/{print $2}' "$agent_file" | head -1 | tr -d '"')
+        desc=$(awk '/^description:/{found=1; next} found && /^  /{print; exit} found && !/^  /{exit}' "$agent_file" | xargs)
+
+        echo -e "  ${emoji:-🤖}  ${BOLD}@${role}${RESET}"
+        [[ -n "$desc" ]] && dim "     $desc"
+        count=$((count + 1))
+      done
+      echo ""
+      echo -e "  Total: ${CYAN}$count agents${RESET}"
+      echo ""
+      ;;
+
+    info)
+      local role="${1:-}"
+      [[ -z "$role" ]] && { err "Usage: crux agent info <name>"; exit 1; }
+      local agent_file="$CRUX_HOME/agents/$role/AGENT.md"
+      [[ ! -f "$agent_file" ]] && { err "Agent not found: $role"; exit 1; }
+
+      hdr "Agent: @$role"
+      echo ""
+      # Print frontmatter
+      awk '/^---/{count++; if(count==2) exit} count==1 && !/^---/{print "  " $0}' "$agent_file"
+      echo ""
+      ;;
+
+    add)
+      local role="${1:-}"
+      [[ -z "$role" ]] && { err "Usage: crux agent add <name>"; exit 1; }
+      local agent_file="$CRUX_HOME/agents/$role/AGENT.md"
+      [[ ! -f "$agent_file" ]] && { err "Agent not found in framework: $role"; exit 1; }
+
+      local adir="$PROJECT_DIR/.crux/workspace/$role"
+      mkdir -p "$adir/sessions"
+      touch "$adir/TODO.md" "$adir/MEMORY.md" "$adir/NOTES.md"
+      ok "Added workspace for @$role"
+
+      # Re-convert so tool picks it up
+      local tool
+      tool=$(detect_tool)
+      local convert="$CRUX_HOME/scripts/convert.sh"
+      [[ -f "$convert" ]] && bash "$convert" --tool "$tool" --source "$CRUX_HOME" --agents "$role"
+      ok "Converted @$role for $tool"
+      ;;
+
+    *)
+      err "Unknown agent subcommand: $subcmd"
+      echo "  Usage: crux agent <list|info|add> [name]"
+      exit 1
+      ;;
+  esac
+}
+
+# ── Registry helper ───────────────────────────────────────────────────────────
+_registry_register() {
+  mkdir -p "$CRUX_REGISTRY/projects"
+
+  local slug
+  slug=$(project_slug)
+  local name
+  name=$(basename "$PROJECT_DIR")
+  local ts
+  ts=$(date +"%Y-%m")
+
+  # projects.md — init if missing
+  if [[ ! -f "$CRUX_REGISTRY/projects.md" ]]; then
+    cat > "$CRUX_REGISTRY/projects.md" << 'REGEOF'
+# Crux Project Registry
+
+| Slug | Name | Path | Type | Status | Registered |
+|---|---|---|---|---|---|
+REGEOF
+  fi
+
+  # Add entry if not already there
+  if ! grep -q "| $slug " "$CRUX_REGISTRY/projects.md" 2>/dev/null; then
+    local type="standalone"
+    [[ -f "pnpm-workspace.yaml" || -f "turbo.json" ]] && type="monorepo"
+    [[ -f "*.sdk.json" || -d "sdk" ]] && type="sdk"
+
+    echo "| $slug | $name | $PROJECT_DIR | $type | active | $ts |" \
+      >> "$CRUX_REGISTRY/projects.md"
+    ok "Registered in global registry: $slug"
+  else
+    info "Already in global registry: $slug"
+  fi
+
+  # Per-project card
+  local card="$CRUX_REGISTRY/projects/$slug.md"
+  if [[ ! -f "$card" ]]; then
+    cat > "$card" << CARDEOF
+# $name
+
+Path: $PROJECT_DIR
+Type: $(grep "| $slug " "$CRUX_REGISTRY/projects.md" 2>/dev/null | awk -F'|' '{print $5}' | xargs || echo standalone)
+Status: active
+Registered: $ts
+
+## Capabilities Provided
+_run capability-check to populate_
+
+## SDKs Provided
+_none yet_
+
+## SDKs Consumed
+_none yet_
+
+## Agents Active
+arc, solution-architect, backend-developer, platform-engineer
+
+## Last Updated
+$ts
+CARDEOF
+    ok "Created registry card: $slug"
+  fi
+}
+
+# ── Command: help ─────────────────────────────────────────────────────────────
+cmd_help() {
+  echo ""
+  echo -e "${BOLD}${BLUE}crux${RESET} — Crux Platform CLI"
+  echo ""
+  echo -e "  ${BOLD}USAGE${RESET}"
+  echo -e "    crux <command> [options]"
+  echo ""
+  echo -e "  ${BOLD}COMMANDS${RESET}"
+  echo -e "    ${CYAN}init${RESET}              Initialize Crux workspace in current directory"
+  echo -e "    ${CYAN}status${RESET}            Show workspace and registry status"
+  echo -e "    ${CYAN}convert${RESET}           Re-sync agent files to AI tool format"
+  echo -e "    ${CYAN}update${RESET}            Update Crux framework from upstream"
+  echo -e "    ${CYAN}registry${RESET}          Show global project registry"
+  echo -e "    ${CYAN}agent list${RESET}        List all available agents"
+  echo -e "    ${CYAN}agent info <name>${RESET} Show agent details"
+  echo -e "    ${CYAN}agent add <name>${RESET}  Add agent workspace to this project"
+  echo -e "    ${CYAN}help${RESET}              Show this help"
+  echo ""
+  echo -e "  ${BOLD}INIT OPTIONS${RESET}"
+  echo -e "    ${CYAN}--tool${RESET}     claude-code | cursor | opencode | windsurf | copilot | all"
+  echo -e "    ${CYAN}--agents${RESET}   comma-separated agent list (default: core set)"
+  echo -e "    ${CYAN}--force${RESET}    re-initialize even if already onboarded"
+  echo ""
+  echo -e "  ${BOLD}EXAMPLES${RESET}"
+  echo -e "    ${GRAY}crux init${RESET}                          # auto-detect tool"
+  echo -e "    ${GRAY}crux init --tool claude-code${RESET}       # explicit tool"
+  echo -e "    ${GRAY}crux init --agents arc,backend-developer${RESET}"
+  echo -e "    ${GRAY}crux status${RESET}                        # workspace health"
+  echo -e "    ${GRAY}crux agent list${RESET}                    # all 20+ agents"
+  echo -e "    ${GRAY}crux agent add postgresql-admin${RESET}    # add specific agent"
+  echo -e "    ${GRAY}crux registry${RESET}                      # cross-project view"
+  echo ""
+  echo -e "  ${BOLD}ENVIRONMENT${RESET}"
+  echo -e "    ${CYAN}CRUX_HOME${RESET}       framework path (default: \$HOME/.crux)"
+  echo -e "    ${CYAN}CRUX_REGISTRY${RESET}   registry path (default: \$CRUX_HOME/registry)"
+  echo -e "    ${CYAN}CRUX_REPO${RESET}       upstream repo (default: basecrux/crux)"
+  echo ""
+  echo -e "  ${BOLD}AFTER INIT${RESET}"
+  echo -e "    Start your AI tool, then: ${CYAN}@arc hadi başlayalım${RESET}"
+  echo ""
+}
+
+# ── Router ─────────────────────────────────────────────────────────────────────
+CMD="${1:-help}"
+shift || true
+
+case "$CMD" in
+  init)      cmd_init "$@" ;;
+  status)    cmd_status "$@" ;;
+  convert)   cmd_convert "$@" ;;
+  update)    cmd_update "$@" ;;
+  registry)  cmd_registry "$@" ;;
+  agent)     cmd_agent "$@" ;;
+  help|--help|-h) cmd_help ;;
+  version|--version|-v)
+    echo "crux $(cat "$CRUX_HOME/.version" 2>/dev/null || echo 'dev')"
+    ;;
+  *)
+    err "Unknown command: $CMD"
+    echo ""
+    cmd_help
+    exit 1
+    ;;
+esac

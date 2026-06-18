@@ -3,7 +3,7 @@ name: incident-triage
 description: >
   Classify production incidents P0-P3. P0/P1 immediately notifies
   human. Creates incident record. Routes to correct agent. Returns
-  severity and assigned agent to coordinator. Trigger: production
+  severity and assigned agent to arc. Trigger: production
   alert, service degradation.
 temperature: 0.1
 permission:

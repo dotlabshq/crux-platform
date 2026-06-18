@@ -8,7 +8,7 @@
 
 ## II. When to Activate
 
-{List the situations when coordinator should route to this agent.}
+{List the situations when arc should route to this agent.}
 
 ---
 

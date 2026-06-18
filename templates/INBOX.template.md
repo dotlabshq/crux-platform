@@ -2,7 +2,7 @@
 
 Human approvals, agent handoffs, and pending operator decisions.
 
-Coordinator writes here when human input is required.
+Arc writes here when human input is required.
 Human reads and responds here to unblock agents.
 
 ---

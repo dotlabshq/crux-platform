@@ -10,7 +10,7 @@
 
 | Agent | Status | Last Active |
 |---|---|---|
-| coordinator | pending-onboard | — |
+| arc | pending-onboard | — |
 
 ---
 
@@ -31,4 +31,4 @@
 
 ## System State
 
-{Updated by coordinator after onboarding.}
+{Updated by arc after onboarding.}

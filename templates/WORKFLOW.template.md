@@ -23,7 +23,7 @@
 ---
 
 ## Required Inputs
-{What the coordinator needs to collect from human before starting.}
+{What the arc needs to collect from human before starting.}
 
 ## Completion Criteria
 {How do we know this workflow is done?}

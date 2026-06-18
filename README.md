@@ -7,15 +7,15 @@ Markdown-native, multi-agent platform engineering framework. Define agents, skil
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dotlabshq/crux-platform/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/{org}/crux-platform/main/scripts/install.sh | bash
 ```
 
-Then start your AI tool in the project directory. The coordinator runs workspace initialization automatically.
+Then start your AI tool in the project directory. The arc runs workspace initialization automatically.
 
 ## What's Included
 
 **New Platform Agents:**
-- `@coordinator` — single entry point, routes all work, enforces capability-first principle
+- `@arc` — single entry point, routes all work, enforces capability-first principle
 - `@solution-architect` — technology decisions, shared app evaluation, ADR authoring
 - `@platform-steward` — SDK versioning, breaking change management, interface sync
 - `@spectator` — cross-project duplicate detection, version drift, weekly scan
@@ -37,11 +37,11 @@ Then start your AI tool in the project directory. The coordinator runs workspace
 
 ## Cross-Project Registry
 
-`$HOME/.crux/registry/` tracks all your projects and their capabilities. The coordinator checks this before building anything — preventing duplicate implementations across repos.
+`$HOME/.crux/registry/` tracks all your projects and their capabilities. The arc checks this before building anything — preventing duplicate implementations across repos.
 
 ## 30B Model Compatible
 
-Agents are written for efficient token usage. Coordinator routes one agent at a time for smaller context windows.
+Agents are written for efficient token usage. Arc routes one agent at a time for smaller context windows.
 
 ## Directory Layout
 

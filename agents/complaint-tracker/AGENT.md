@@ -41,7 +41,7 @@ You manage the complaint lifecycle: intake, classification, assignment, escalati
 
 - Technical issue → @backend-developer or @platform-engineer
 - Security concern → @security-lead
-- Product feedback → coordinator → product backlog
+- Product feedback → arc → product backlog
 - Legal/compliance → @ciso-advisor
 
 ---

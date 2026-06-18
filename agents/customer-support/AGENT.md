@@ -40,7 +40,7 @@ You handle customer support operations: triage incoming support requests, draft 
 - Technical issue → @backend-developer or @platform-engineer
 - Security concern → @security-lead
 - Billing issue → @ledger-finance-manager or billing-app team
-- Feature request → coordinator → product backlog
+- Feature request → arc → product backlog
 
 ---
 

@@ -18,14 +18,14 @@ payload:
 ## Standard Events
 
 ```
-agent.onboarded     → coordinator, when agent completes onboarding
-task.completed      → coordinator, when agent finishes a task
-capability.added    → coordinator, when new capability built
+agent.onboarded     → arc, when agent completes onboarding
+task.completed      → arc, when agent finishes a task
+capability.added    → arc, when new capability built
 gate.approved       → all agents, when human approves a gate
 incident.resolved   → all agents, when incident closed
 ```
 
-## Coordinator Listens For
+## Arc Listens For
 
 - `agent.onboarded` → update MANIFEST.md
 - `task.completed` → update TODO.md

@@ -3,10 +3,10 @@
 # Downloads and installs the Crux Platform framework to $HOME/.crux
 #
 # Quick start:
-#   curl -fsSL https://raw.githubusercontent.com/dotlabshq/crux-platform/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/{org}/crux-platform/main/scripts/install.sh | bash
 #
 # With options:
-#   curl -fsSL .../install.sh | bash -s -- --tool claude-code --agents coordinator,solution-architect
+#   curl -fsSL .../install.sh | bash -s -- --tool claude-code --agents arc,solution-architect
 # =============================================================================
 set -euo pipefail
 
@@ -20,7 +20,7 @@ err()  { echo -e "  ${RED}✗${RESET} $*" >&2; }
 hdr()  { echo -e "\n${BOLD}${BLUE}$*${RESET}"; }
 
 # Defaults
-REPO="dotlabshq/crux-platform"
+REPO="your-org/crux-platform"
 BRANCH="main"
 AGENTS_ARG=""
 TOOL="auto"
@@ -140,7 +140,7 @@ done
 
 # Skills
 hdr "Installing skills..."
-install_tree "$EXTRACTED/skills/crux-coordinator" "$FRAMEWORK_HOME/skills/crux-coordinator"
+install_tree "$EXTRACTED/skills/crux-arc" "$FRAMEWORK_HOME/skills/crux-arc"
 
 for role in "${AGENT_LIST[@]}"; do
   agent_file="$FRAMEWORK_HOME/agents/${role}/AGENT.md"
@@ -201,7 +201,7 @@ else
 
 Before interpreting project state, routing work, or loading agents, read:
 
-  \`{framework-home}/skills/crux-coordinator/SKILL.md\`
+  \`{framework-home}/skills/crux-arc/SKILL.md\`
 
 Default \`{framework-home}\` is \`\$HOME/.crux\` unless \`CRUX_HOME\` is set."
   if [[ -f "$AGENTS_FILE" ]]; then
@@ -247,8 +247,8 @@ echo ""
 echo -e "  ${BOLD}Next steps:${RESET}"
 echo ""
 echo -e "  1. Start your AI tool in this project directory"
-echo -e "  2. The coordinator will run workspace initialization on first boot"
-echo -e "  3. Answer 3 questions — coordinator handles everything else"
+echo -e "  2. The arc will run workspace initialization on first boot"
+echo -e "  3. Answer 3 questions — arc handles everything else"
 echo ""
 echo -e "  ${BOLD}Available agents:${RESET}"
 for role in "${AGENT_LIST[@]:0:8}"; do echo -e "    ${CYAN}@${role}${RESET}"; done
@@ -256,4 +256,53 @@ for role in "${AGENT_LIST[@]:0:8}"; do echo -e "    ${CYAN}@${role}${RESET}"; do
 echo ""
 echo -e "  ${BOLD}Update framework:${RESET}"
 echo -e "    ${CYAN}$FRAMEWORK_HOME/scripts/update.sh${RESET}"
+echo ""
+
+# ── Install crux CLI ──────────────────────────────────────────────────────────
+hdr "Installing crux CLI..."
+CRUX_BIN="$FRAMEWORK_HOME/bin"
+$DRY_RUN || mkdir -p "$CRUX_BIN"
+
+if [[ -f "$EXTRACTED/scripts/crux" ]]; then
+  $DRY_RUN || cp "$EXTRACTED/scripts/crux" "$CRUX_BIN/crux"
+  $DRY_RUN || chmod +x "$CRUX_BIN/crux"
+  ok "crux CLI → $CRUX_BIN/crux"
+else
+  warn "crux CLI script not found in package"
+fi
+
+# Add to PATH if not already there
+add_to_path() {
+  local shell_rc="$1"
+  local path_line='export PATH="$HOME/.crux/bin:$PATH"'
+  if [[ -f "$shell_rc" ]]; then
+    grep -qF "$path_line" "$shell_rc" \
+      && info "PATH already set in $shell_rc" \
+      || { $DRY_RUN || echo "" >> "$shell_rc"
+           $DRY_RUN || echo "# Crux Platform CLI" >> "$shell_rc"
+           $DRY_RUN || echo "$path_line" >> "$shell_rc"
+           ok "Added crux to PATH in $shell_rc"; }
+  fi
+}
+
+$DRY_RUN || add_to_path "$HOME/.bashrc"
+$DRY_RUN || add_to_path "$HOME/.zshrc"
+
+# Symlink for immediate use in current shell
+if [[ -d "/usr/local/bin" && -w "/usr/local/bin" ]]; then
+  $DRY_RUN || ln -sf "$CRUX_BIN/crux" "/usr/local/bin/crux"
+  ok "Symlinked crux → /usr/local/bin/crux"
+else
+  $DRY_RUN || ln -sf "$CRUX_BIN/crux" "$HOME/.local/bin/crux" 2>/dev/null || true
+fi
+
+echo ""
+echo -e "  ${BOLD}Quick usage:${RESET}"
+echo -e "    ${CYAN}crux init${RESET}          in any project directory"
+echo -e "    ${CYAN}crux agent list${RESET}    see all available agents"
+echo -e "    ${CYAN}crux status${RESET}        workspace health check"
+echo -e "    ${CYAN}crux help${RESET}          full command reference"
+echo ""
+echo -e "  ${GRAY}If crux command not found, restart shell or run:${RESET}"
+echo -e "    ${CYAN}source ~/.bashrc${RESET}  (or ~/.zshrc)"
 echo ""

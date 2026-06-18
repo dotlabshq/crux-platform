@@ -15,7 +15,7 @@ emoji: 🏗️
 # shared-app-decision
 
 ## Trigger
-capability-check returns MISSING_SHARED, or coordinator asks "should this be a shared app?"
+capability-check returns MISSING_SHARED, or arc asks "should this be a shared app?"
 
 ---
 

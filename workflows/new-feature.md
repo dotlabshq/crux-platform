@@ -8,7 +8,7 @@
 ## Steps
 
 ### 1 — Capability Check (required, no exceptions)
-Agent: coordinator · Skill: `capability-check`
+Agent: arc · Skill: `capability-check`
 → LOCAL_MATCH: route to owning code, done
 → REGISTRY_MATCH: import SDK/API, done
 → PARTIAL: route to owning agent to extend, done
@@ -30,7 +30,7 @@ Contract first → code → tests → tests pass = done
 
 ### 5 — Capability Map Update
 Owning agent: `.crux/docs/capability-map.md`
-Coordinator: `$HOME/.crux/registry/capabilities.md`
+Arc: `$HOME/.crux/registry/capabilities.md`
 
 ## Completion
 Tests pass · capability map updated · no open audit failures · PR ready

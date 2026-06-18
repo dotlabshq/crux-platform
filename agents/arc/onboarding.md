@@ -1,4 +1,4 @@
-# Coordinator Onboarding
+# Arc Onboarding
 
 ## Purpose
 Run when MANIFEST.md missing or status: pending-onboard. One question at a time. Show defaults in brackets.

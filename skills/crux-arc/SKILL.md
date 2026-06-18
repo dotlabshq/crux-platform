@@ -1,5 +1,5 @@
 ---
-name: crux-coordinator
+name: crux-arc
 description: >
   Boot protocol skill. Reads at every session start. Checks workspace
   state, loads base context, resumes pending work, routes incoming
@@ -11,7 +11,7 @@ permission:
 color: "#7c3aed"
 emoji: 🧭
 ---
-# crux-coordinator
+# crux-arc
 
 ## Trigger
 
@@ -37,7 +37,7 @@ Load base context (always, ~3000 tokens):
 ```
 .crux/CONSTITUTION.md
 .crux/SOUL.md
-{framework-home}/agents/coordinator/AGENT.md
+{framework-home}/agents/arc/AGENT.md
 .crux/workspace/MEMORY.md
 .crux/workspace/TODO.md
 ```
@@ -52,7 +52,7 @@ Read `.crux/workspace/inbox.md`. Any `waiting` human gates → surface to human 
 
 ### 4 — Route Incoming Request
 
-See `{framework-home}/agents/coordinator/AGENT.md` for full routing table.
+See `{framework-home}/agents/arc/AGENT.md` for full routing table.
 
 Short version:
 - Feature request → capability-check skill first, always
