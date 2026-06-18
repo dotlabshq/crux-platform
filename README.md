@@ -7,7 +7,7 @@ Markdown-native, multi-agent platform engineering framework. Define agents, skil
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/{org}/crux-platform/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/dotlabshq/crux-platform/main/scripts/install.sh | bash
 ```
 
 Then start your AI tool in the project directory. The coordinator runs workspace initialization automatically.

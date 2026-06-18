@@ -3,7 +3,7 @@
 # Downloads and installs the Crux Platform framework to $HOME/.crux
 #
 # Quick start:
-#   curl -fsSL https://raw.githubusercontent.com/{org}/crux-platform/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/dotlabshq/crux-platform/main/scripts/install.sh | bash
 #
 # With options:
 #   curl -fsSL .../install.sh | bash -s -- --tool claude-code --agents coordinator,solution-architect
@@ -20,7 +20,7 @@ err()  { echo -e "  ${RED}✗${RESET} $*" >&2; }
 hdr()  { echo -e "\n${BOLD}${BLUE}$*${RESET}"; }
 
 # Defaults
-REPO="your-org/crux-platform"
+REPO="dotlabshq/crux-platform"
 BRANCH="main"
 AGENTS_ARG=""
 TOOL="auto"
