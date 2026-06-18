@@ -20,7 +20,7 @@ err()  { echo -e "  ${RED}✗${RESET} $*" >&2; }
 hdr()  { echo -e "\n${BOLD}${BLUE}$*${RESET}"; }
 
 # Defaults
-REPO="your-org/crux-platform"
+REPO="dotlabshq/crux-platform"
 BRANCH="main"
 AGENTS_ARG=""
 TOOL="auto"
